@@ -1,0 +1,159 @@
+// CraftyTech AI HRMS — MongoDB Atlas schema (for Vercel deployment)
+// The application logic (route files) is unchanged from the PostgreSQL
+// version — Prisma Client's API is the same across providers. Only this
+// schema file and the connection config differ.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  EMPLOYEE
+  MANAGER
+  HR
+  ADMIN
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  HALF_DAY
+  ON_LEAVE
+  ABSENT
+  HOLIDAY
+  WORK_FROM_HOME
+}
+
+enum WFHStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  INTERN
+}
+
+model Employee {
+  id             String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeCode   String   @unique
+  fullName       String
+  email          String   @unique
+  passwordHash   String
+  role           Role     @default(EMPLOYEE)
+  employmentType EmploymentType @default(FULL_TIME)
+  department     String?
+  designation    String?
+  dateOfJoining  DateTime
+  managerId      String?  @db.ObjectId
+  manager        Employee?  @relation("ManagerReports", fields: [managerId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  reports        Employee[] @relation("ManagerReports")
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+
+  // Profile details (Employee Database module)
+  phone            String?
+  personalEmail    String?
+  address          String?
+  dateOfBirth      DateTime?
+  bloodGroup       String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  panNumber        String?
+  aadhaarNumber    String?
+  bankAccountNumber String?
+  bankIfsc         String?
+
+  attendance     Attendance[]
+  leaveRequests  LeaveRequest[]      @relation("RequestedBy")
+  approvals      LeaveRequest[]      @relation("ApprovedBy")
+  leaveBalances  LeaveBalance[]
+  wfhRequests    WFHRequest[]        @relation("WFHRequestedBy")
+  wfhApprovals   WFHRequest[]        @relation("WFHApprovedBy")
+}
+
+model Attendance {
+  id           String            @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId   String            @db.ObjectId
+  employee     Employee          @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  date         DateTime          // day stored at midnight UTC — see todayDate() helper in attendance.js
+  clockIn      DateTime?
+  clockOut     DateTime?
+  status       AttendanceStatus  @default(PRESENT)
+  workHours    Float?
+  notes        String?
+  createdAt    DateTime          @default(now())
+
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+model LeaveType {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  name          String   @unique
+  daysPerYear   Int
+  requests      LeaveRequest[]
+  balances      LeaveBalance[]
+}
+
+model LeaveBalance {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId    String   @db.ObjectId
+  employee      Employee @relation(fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  leaveTypeId   String   @db.ObjectId
+  leaveType     LeaveType @relation(fields: [leaveTypeId], references: [id])
+  year          Int
+  totalDays     Float
+  usedDays      Float    @default(0)
+
+  @@unique([employeeId, leaveTypeId, year])
+}
+
+model LeaveRequest {
+  id            String       @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId    String       @db.ObjectId
+  employee      Employee     @relation("RequestedBy", fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  leaveTypeId   String       @db.ObjectId
+  leaveType     LeaveType    @relation(fields: [leaveTypeId], references: [id])
+  startDate     DateTime
+  endDate       DateTime
+  numDays       Float
+  reason        String?
+  status        LeaveStatus  @default(PENDING)
+  approverId    String?      @db.ObjectId
+  approver      Employee?    @relation("ApprovedBy", fields: [approverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approverNote  String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@index([employeeId, status])
+}
+
+model WFHRequest {
+  id            String     @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId    String     @db.ObjectId
+  employee      Employee   @relation("WFHRequestedBy", fields: [employeeId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  date          DateTime
+  reason        String?
+  status        WFHStatus  @default(PENDING)
+  approverId    String?    @db.ObjectId
+  approver      Employee?  @relation("WFHApprovedBy", fields: [approverId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  approverNote  String?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([employeeId, status])
+}
