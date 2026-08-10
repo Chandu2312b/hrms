@@ -15,7 +15,30 @@ const app = express();
 // proxy's own address. Needed for the office-IP restriction on clock-in/out.
 app.set("trust proxy", true);
 
-app.use(cors({ origin: process.env.FRONTEND_ORIGIN || "*" }));
+const allowedOrigins = process.env.FRONTEND_ORIGIN
+  ? process.env.FRONTEND_ORIGIN.split(",").map((o) => o.trim().replace(/\/+$/, ""))
+  : ["*"];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      const normalizedOrigin = origin.trim().replace(/\/+$/, "");
+      if (
+        allowedOrigins.includes("*") ||
+        allowedOrigins.some((allowed) => allowed.includes(normalizedOrigin) || normalizedOrigin.includes(allowed))
+      ) {
+        return callback(null, true);
+      }
+      // Fallback allow for Vercel app domains
+      if (normalizedOrigin.endsWith(".vercel.app")) {
+        return callback(null, true);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 
 app.get("/health", (req, res) => res.json({ status: "ok", service: "craftytechai-hrms-api" }));
