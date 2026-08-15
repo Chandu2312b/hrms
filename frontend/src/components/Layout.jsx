@@ -18,7 +18,7 @@ const ROLE_LABEL = {
   ADMIN: "Admin",
 };
 
-export default function Layout({ children, title, subtitle }) {
+export default function Layout({ children, title, subtitle, actions }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -74,10 +74,13 @@ export default function Layout({ children, title, subtitle }) {
       </header>
 
       <main className="container fade-in">
-        {title && (
+        {(title || actions) && (
           <div className="page-heading">
-            <h1>{title}</h1>
-            {subtitle && <p>{subtitle}</p>}
+            <div className="page-heading-info">
+              {title && <h1>{title}</h1>}
+              {subtitle && <p>{subtitle}</p>}
+            </div>
+            {actions && <div className="page-heading-actions">{actions}</div>}
           </div>
         )}
         {children}

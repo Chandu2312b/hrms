@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import api from "../api";
 import Layout from "../components/Layout";
+import AttendanceCalendarModal from "../components/AttendanceCalendarModal";
 
 export default function Dashboard() {
   const [records, setRecords] = useState([]);
@@ -10,6 +11,9 @@ export default function Dashboard() {
   const [actionError, setActionError] = useState("");
   const [team, setTeam] = useState(null);
   const [companyStats, setCompanyStats] = useState(null);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [elapsed, setElapsed] = useState(0); // seconds since clock-in
+  const timerRef = useRef(null);
   const user = JSON.parse(localStorage.getItem("hrms_user") || "{}");
   const isManager = user.role === "MANAGER";
   const isHRorAdmin = user.role === "HR" || user.role === "ADMIN";
@@ -70,6 +74,34 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Live timer — runs while clocked in but not yet clocked out
+  useEffect(() => {
+    clearInterval(timerRef.current);
+    if (today?.clockIn && !today?.clockOut) {
+      const clockInTime = new Date(today.clockIn).getTime();
+      const tick = () => {
+        const diffSec = Math.floor((Date.now() - clockInTime) / 1000);
+        setElapsed(diffSec > 0 ? diffSec : 0);
+      };
+      tick(); // run immediately so UI shows value without 1-second delay
+      timerRef.current = setInterval(tick, 1000);
+    } else {
+      setElapsed(0);
+    }
+    return () => clearInterval(timerRef.current);
+  }, [today?.clockIn, today?.clockOut]);
+
+  function formatElapsed(totalSec) {
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    return [
+      String(h).padStart(2, "0"),
+      String(m).padStart(2, "0"),
+      String(s).padStart(2, "0"),
+    ].join(":");
+  }
+
   async function clockIn() {
     setLoading(true);
     setActionError("");
@@ -98,22 +130,106 @@ export default function Dashboard() {
     }
   }
 
-  return (
-    <Layout title={`Welcome back, ${user.fullName?.split(" ")[0] || ""} 👋`} subtitle={new Date().toDateString()}>
+  const headerActions = (
+    <button
+      className="btn secondary"
+      onClick={() => setIsCalendarOpen(true)}
+      style={{ display: "flex", alignItems: "center", gap: 6, width: "auto" }}
+    >
+      <span>📅</span> Check History
+    </button>
+  );
 
-      <div className="card">
+  return (
+    <Layout
+      title={`Welcome back, ${user.fullName?.split(" ")[0] || ""} 👋`}
+      subtitle={new Date().toDateString()}
+      actions={headerActions}
+    >
+      <div className="card" style={{ position: "relative" }}>
+        {/* Timer badge — top-right corner of the card */}
+        {today?.clockIn && !today?.clockOut && (
+          <div style={{
+            position: "absolute",
+            top: 18,
+            right: 22,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            background: "linear-gradient(135deg, #0f1f3d 0%, #1a3466 100%)",
+            color: "white",
+            borderRadius: 12,
+            padding: "10px 16px",
+            boxShadow: "0 4px 16px rgba(15,31,61,0.22)",
+          }}>
+            <span style={{ fontSize: 18 }}>⏱️</span>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 1 }}>Time Elapsed</div>
+              <div style={{
+                fontSize: 24,
+                fontWeight: 800,
+                fontVariantNumeric: "tabular-nums",
+                letterSpacing: "0.04em",
+                lineHeight: 1,
+                fontFamily: "'Inter', monospace",
+              }}>
+                {formatElapsed(elapsed)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Completed badge — top-right corner */}
+        {today?.clockOut && (
+          <div style={{
+            position: "absolute",
+            top: 18,
+            right: 22,
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            background: "linear-gradient(135deg, #2b8a3e 0%, #1e6b2e 100%)",
+            color: "white",
+            borderRadius: 12,
+            padding: "10px 16px",
+            boxShadow: "0 4px 16px rgba(43,138,62,0.22)",
+          }}>
+            <span style={{ fontSize: 18 }}>✅</span>
+            <div>
+              <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 1 }}>Total Worked</div>
+              <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "0.04em", lineHeight: 1, fontFamily: "'Inter', monospace" }}>
+                {today.workHours} hrs
+              </div>
+            </div>
+          </div>
+        )}
+
         <h2>Today's Attendance</h2>
         {actionError && <p style={{ color: "#c0392b", fontSize: 14 }}>⚠️ {actionError}</p>}
-        {!today?.clockIn && <button className="btn" disabled={loading} onClick={clockIn}>Clock In</button>}
+
+        {/* Not yet clocked in */}
+        {!today?.clockIn && (
+          <>
+            <p style={{ color: "var(--grey)", fontSize: 14, margin: "0 0 14px" }}>You haven't clocked in yet today.</p>
+            <button className="btn" disabled={loading} onClick={clockIn}>Clock In</button>
+          </>
+        )}
+
+        {/* Clocked in — info + Clock Out button */}
         {today?.clockIn && !today?.clockOut && (
           <>
-            <p>Clocked in at {new Date(today.clockIn).toLocaleTimeString()}</p>
+            <p style={{ color: "var(--grey)", fontSize: 13, margin: "0 0 14px" }}>
+              Clocked in at <strong>{new Date(today.clockIn).toLocaleTimeString()}</strong>
+            </p>
             <button className="btn secondary" disabled={loading} onClick={clockOut}>Clock Out</button>
           </>
         )}
+
+        {/* Clocked out — show time range */}
         {today?.clockOut && (
-          <p>✅ Done for today — {today.workHours} hrs worked
-            ({new Date(today.clockIn).toLocaleTimeString()} – {new Date(today.clockOut).toLocaleTimeString()})</p>
+          <p style={{ color: "var(--grey)", fontSize: 13, margin: "0" }}>
+            {new Date(today.clockIn).toLocaleTimeString()} – {new Date(today.clockOut).toLocaleTimeString()}
+          </p>
         )}
       </div>
 
@@ -176,6 +292,13 @@ export default function Dashboard() {
           </tbody>
         </table>
       </div>
+
+      {/* Calendar Modal */}
+      <AttendanceCalendarModal
+        isOpen={isCalendarOpen}
+        onClose={() => setIsCalendarOpen(false)}
+        records={records}
+      />
     </Layout>
   );
 }
