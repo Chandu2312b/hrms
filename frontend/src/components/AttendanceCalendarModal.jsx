@@ -223,8 +223,18 @@ export default function AttendanceCalendarModal({ isOpen, onClose, records = [] 
                   <span className="day-number">{cell.day}</span>
                   {cell.isToday && <span className="day-today-badge" title="Today" />}
 
-                  {cell.isPresent && <span className="day-status-tag">Present</span>}
-                  {cell.isAbsent && <span className="day-status-tag">Absent</span>}
+                  {cell.isPresent && (
+                    <span className="day-status-tag">
+                      <span className="status-text-full">Present</span>
+                      <span className="status-text-short">P</span>
+                    </span>
+                  )}
+                  {cell.isAbsent && (
+                    <span className="day-status-tag">
+                      <span className="status-text-full">Absent</span>
+                      <span className="status-text-short">A</span>
+                    </span>
+                  )}
 
                   {cell.record?.clockIn && (
                     <span className="day-time-preview">

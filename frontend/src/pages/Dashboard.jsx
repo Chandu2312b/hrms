@@ -21,12 +21,8 @@ export default function Dashboard() {
   function isTodayRecord(record) {
     if (!record) return false;
     const todayStr = new Date().toDateString();
-    if (record.clockIn && new Date(record.clockIn).toDateString() === todayStr) {
-      return true;
-    }
-    if (record.clockOut && new Date(record.clockOut).toDateString() === todayStr) {
-      return true;
-    }
+    if (record.clockIn && new Date(record.clockIn).toDateString() === todayStr) return true;
+    if (record.clockOut && new Date(record.clockOut).toDateString() === todayStr) return true;
     if (record.date) {
       if (new Date(record.date).toDateString() === todayStr) return true;
       const localISO = new Date().toISOString().slice(0, 10);
@@ -40,8 +36,7 @@ export default function Dashboard() {
     try {
       const { data } = await api.get("/attendance/me");
       setRecords(data);
-      const todayRec = data.find(isTodayRecord) || null;
-      setToday(todayRec);
+      setToday(data.find(isTodayRecord) || null);
     } catch (err) {
       console.error("Failed to load attendance records:", err);
     }
@@ -83,7 +78,7 @@ export default function Dashboard() {
         const diffSec = Math.floor((Date.now() - clockInTime) / 1000);
         setElapsed(diffSec > 0 ? diffSec : 0);
       };
-      tick(); // run immediately so UI shows value without 1-second delay
+      tick();
       timerRef.current = setInterval(tick, 1000);
     } else {
       setElapsed(0);
@@ -132,9 +127,8 @@ export default function Dashboard() {
 
   const headerActions = (
     <button
-      className="btn secondary"
+      className="btn secondary check-history-btn"
       onClick={() => setIsCalendarOpen(true)}
-      style={{ display: "flex", alignItems: "center", gap: 6, width: "auto" }}
     >
       <span>📅</span> Check History
     </button>
@@ -146,94 +140,66 @@ export default function Dashboard() {
       subtitle={new Date().toDateString()}
       actions={headerActions}
     >
-      <div className="card" style={{ position: "relative" }}>
-        {/* Timer badge — top-right corner of the card */}
-        {today?.clockIn && !today?.clockOut && (
-          <div style={{
-            position: "absolute",
-            top: 18,
-            right: 22,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            background: "linear-gradient(135deg, #0f1f3d 0%, #1a3466 100%)",
-            color: "white",
-            borderRadius: 12,
-            padding: "10px 16px",
-            boxShadow: "0 4px 16px rgba(15,31,61,0.22)",
-          }}>
-            <span style={{ fontSize: 18 }}>⏱️</span>
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 1 }}>Time Elapsed</div>
-              <div style={{
-                fontSize: 24,
-                fontWeight: 800,
-                fontVariantNumeric: "tabular-nums",
-                letterSpacing: "0.04em",
-                lineHeight: 1,
-                fontFamily: "'Inter', monospace",
-              }}>
-                {formatElapsed(elapsed)}
+      {/* ── Today's Attendance ── */}
+      <div className="card attend-card">
+        {/* Row: title on left, badge on right */}
+        <div className="attend-card-header">
+          <h2 className="attend-card-title">Today's Attendance</h2>
+
+          {/* Live running timer badge */}
+          {today?.clockIn && !today?.clockOut && (
+            <div className="attend-badge attend-badge--active">
+              <span className="attend-badge-icon">⏱️</span>
+              <div>
+                <div className="attend-badge-label">Time Elapsed</div>
+                <div className="attend-badge-time">{formatElapsed(elapsed)}</div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Completed badge — top-right corner */}
-        {today?.clockOut && (
-          <div style={{
-            position: "absolute",
-            top: 18,
-            right: 22,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 8,
-            background: "linear-gradient(135deg, #2b8a3e 0%, #1e6b2e 100%)",
-            color: "white",
-            borderRadius: 12,
-            padding: "10px 16px",
-            boxShadow: "0 4px 16px rgba(43,138,62,0.22)",
-          }}>
-            <span style={{ fontSize: 18 }}>✅</span>
-            <div>
-              <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.7, letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 1 }}>Total Worked</div>
-              <div style={{ fontSize: 24, fontWeight: 800, letterSpacing: "0.04em", lineHeight: 1, fontFamily: "'Inter', monospace" }}>
-                {today.workHours} hrs
+          {/* Completed badge */}
+          {today?.clockOut && (
+            <div className="attend-badge attend-badge--done">
+              <span className="attend-badge-icon">✅</span>
+              <div>
+                <div className="attend-badge-label">Total Worked</div>
+                <div className="attend-badge-time">{today.workHours} hrs</div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
-        <h2>Today's Attendance</h2>
-        {actionError && <p style={{ color: "#c0392b", fontSize: 14 }}>⚠️ {actionError}</p>}
+        {/* Body */}
+        <div className="attend-card-body">
+          {actionError && <p style={{ color: "#c0392b", fontSize: 14, margin: "0 0 10px" }}>⚠️ {actionError}</p>}
 
-        {/* Not yet clocked in */}
-        {!today?.clockIn && (
-          <>
-            <p style={{ color: "var(--grey)", fontSize: 14, margin: "0 0 14px" }}>You haven't clocked in yet today.</p>
-            <button className="btn" disabled={loading} onClick={clockIn}>Clock In</button>
-          </>
-        )}
+          {!today?.clockIn && (
+            <>
+              <p style={{ color: "var(--grey)", fontSize: 14, margin: "0 0 14px" }}>
+                You haven't clocked in yet today.
+              </p>
+              <button className="btn" disabled={loading} onClick={clockIn}>Clock In</button>
+            </>
+          )}
 
-        {/* Clocked in — info + Clock Out button */}
-        {today?.clockIn && !today?.clockOut && (
-          <>
-            <p style={{ color: "var(--grey)", fontSize: 13, margin: "0 0 14px" }}>
-              Clocked in at <strong>{new Date(today.clockIn).toLocaleTimeString()}</strong>
+          {today?.clockIn && !today?.clockOut && (
+            <>
+              <p style={{ color: "var(--grey)", fontSize: 13, margin: "0 0 14px" }}>
+                Clocked in at <strong>{new Date(today.clockIn).toLocaleTimeString()}</strong>
+              </p>
+              <button className="btn secondary" disabled={loading} onClick={clockOut}>Clock Out</button>
+            </>
+          )}
+
+          {today?.clockOut && (
+            <p style={{ color: "var(--grey)", fontSize: 13, margin: 0 }}>
+              {new Date(today.clockIn).toLocaleTimeString()} – {new Date(today.clockOut).toLocaleTimeString()}
             </p>
-            <button className="btn secondary" disabled={loading} onClick={clockOut}>Clock Out</button>
-          </>
-        )}
-
-        {/* Clocked out — show time range */}
-        {today?.clockOut && (
-          <p style={{ color: "var(--grey)", fontSize: 13, margin: "0" }}>
-            {new Date(today.clockIn).toLocaleTimeString()} – {new Date(today.clockOut).toLocaleTimeString()}
-          </p>
-        )}
+          )}
+        </div>
       </div>
 
-      {/* Manager-only widget */}
+      {/* ── Manager widget ── */}
       {isManager && team && (
         <div className="card">
           <h3>Team Overview <span className="role-badge role-MANAGER" style={{ marginLeft: 6 }}>Manager</span></h3>
@@ -246,7 +212,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* HR/Admin-only widget */}
+      {/* ── HR/Admin widget ── */}
       {isHRorAdmin && companyStats && (
         <div className="card">
           <h3>Company Overview <span className="role-badge role-HR" style={{ marginLeft: 6 }}>HR</span></h3>
@@ -255,16 +221,17 @@ export default function Dashboard() {
             <div className="stat-tile"><div className="stat-value">{companyStats.pendingLeave}</div><div className="stat-label">Pending Leave</div></div>
             <div className="stat-tile"><div className="stat-value">{companyStats.pendingWfh}</div><div className="stat-label">Pending WFH</div></div>
           </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 14 }}>
+          <div className="quick-actions-row" style={{ marginTop: 14 }}>
             <Link to="/employees/add" className="btn secondary" style={{ textDecoration: "none", textAlign: "center" }}>+ Add Employee</Link>
             <Link to="/employees" className="btn secondary" style={{ textDecoration: "none", textAlign: "center" }}>Full Directory</Link>
           </div>
         </div>
       )}
 
+      {/* ── Quick Actions ── */}
       <div className="card">
         <h3>Quick Actions</h3>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <div className="quick-actions-row">
           <Link to="/leave/apply" className="btn" style={{ textDecoration: "none", textAlign: "center" }}>Apply for Leave</Link>
           <Link to="/wfh/apply" className="btn secondary" style={{ textDecoration: "none", textAlign: "center" }}>Request WFH</Link>
           {(isManager || isHRorAdmin) && (
@@ -276,24 +243,29 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ── Recent Attendance ── */}
       <div className="card">
         <h3>Recent Attendance</h3>
-        <table>
-          <thead><tr><th>Date</th><th>In</th><th>Out</th><th>Status</th></tr></thead>
-          <tbody>
-            {records.slice(0, 10).map((r) => (
-              <tr key={r.id}>
-                <td>{new Date(r.date).toLocaleDateString()}</td>
-                <td>{r.clockIn ? new Date(r.clockIn).toLocaleTimeString() : "—"}</td>
-                <td>{r.clockOut ? new Date(r.clockOut).toLocaleTimeString() : "—"}</td>
-                <td>{r.status}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="table-scroll-wrapper">
+          <table>
+            <thead>
+              <tr><th>Date</th><th>In</th><th>Out</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {records.slice(0, 10).map((r) => (
+                <tr key={r.id}>
+                  <td>{new Date(r.date).toLocaleDateString()}</td>
+                  <td>{r.clockIn ? new Date(r.clockIn).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                  <td>{r.clockOut ? new Date(r.clockOut).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—"}</td>
+                  <td><span className={`status-tag-sm status-${r.status}`}>{r.status?.replace("_", " ")}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      {/* Calendar Modal */}
+      {/* ── Calendar Modal ── */}
       <AttendanceCalendarModal
         isOpen={isCalendarOpen}
         onClose={() => setIsCalendarOpen(false)}
